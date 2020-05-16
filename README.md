@@ -290,8 +290,8 @@ is used to define a service method. By default if a logical name is not specifie
 Each service method should have its own unique logical name for a given service.
 
 ---
-
 ## Implementing a services
+---
 Implementing a service is simple as implementing a java service interface. using pure java, so your model and implementation stays clean. One more benefit of such an approach comes when testing your service. Building the service is just like building any other java component. The service is a simple java class with one or more service methods. a service method may return Reactor Project Mono | Flux or void in case no result is expected. Service requests might be a local or remote call and should not block the service consumer (unless the consumer explicitly called the Mono.block())
 
 NOTE: when implementing a reactive service, blocking a service call is not recommended. 
@@ -303,19 +303,22 @@ import reactor.core.publisher.Flux;
 public class SimpleGreetingService implements GreetingService {
     
     @ServiceMethod   // FIRE AND FORGET
-    void greeting(GreetingRequest request){
-       // do somthing about it
+    Mono<Void> greeting(GreetingRequest request) {
+       ...
+       return Mono.empty()
     }
     
     
     @ServiceMethod   // REQUEST RESPONSE
     Mono<GreetingResponse> greeting(GreetingRequest request) {
+       ...
        return Mono.just(new GreetingResponse())
     }
 
    
     @ServiceMethod   // REQUEST STREAM
     Flux<GreetingResponse> greetingStream(GreetingRequest request) {
+       ...
        return Flux.empty()
     }
 
@@ -337,7 +340,7 @@ In this section we will learn how to provision our components as clustered Micro
   // Create microservice provider
   Microservices provider = Microservices.builder()
     .discovery(options -> options.seeds(....))
-    .services(new GreetingServiceImpl(),...)
+    .services(new SimpleGreetingService(),...)
     .startAwait();
 ```
 
@@ -354,7 +357,7 @@ Following are several examples use-cases of Service Tags:
 ```java
     Microservices services1 = Microservices.builder()
         .discovery(options -> options.seeds(....))
-        .service(ServiceInfo.fromServiceInstance(new GreetingServiceImpl())
+        .service(ServiceInfo.fromServiceInstance(new SimpleGreetingService())
               .tag("Weight", "0.3")
               .tag("Version", "1.0.3")
               .tag("Role", "Master")
@@ -408,8 +411,8 @@ Using the service proxy to call the concrete service is as trivial as a simple m
 By default the scale-cube services provides a Round-robin service instance selection. Thus for each service request the service proxy will use the currently available service endpoints and will invoke one message to one service instance at a time so its balanced across all currently-live-service-instances. Using the .router(...) its also possible to control the endpoint selection logic.
 
 Service Proxy Options:
-.router(...) option you can choose from available selection logic or provide a custom one.
-.timeout(Duration) option you can specify a timeout for waiting for service response the default is 30 secounds.
+`.router(...)` option you can choose from available selection logic or provide a custom one.
+`.timeout(Duration)` option you can specify a timeout for waiting for service response the default is 30 secounds.
 
 ```java
   // Get a proxy to a service API via a router.
