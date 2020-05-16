@@ -45,11 +45,11 @@ ScaleCube Services Features:
 
 User Guide:
 
-* [Services Overview](http://scalecube.io/services.html)
-* [Defining Services](http://scalecube.io/user-reference/services/DefineService.html)
-* [Implementing services](http://scalecube.io/user-reference/services/ServiceImplementation.html)
-* [Provisioning Clustered Services](http://scalecube.io/user-reference/services/ProvisionClusterServices.html)
-* [Consuming services](http://scalecube.io/user-reference/services/ConsumingServices.html)
+* [Services Overview](#overview)
+* [Defining Services](#defining-a-services)
+* [Implementing services](#implementing-a-services)
+* [Provisioning Services](#provisioning-services)
+* [Consuming services](#consuming-services)
 
 
 Basic Usage:
