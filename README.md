@@ -289,18 +289,135 @@ is used to define a service method. By default if a logical name is not specifie
 
 Each service method should have its own unique logical name for a given service.
 
+---
 
+## Implementing a services
+Implementing a service is simple as implementing a java service interface. using pure java, so your model and implementation stays clean. One more benefit of such an approach comes when testing your service. Building the service is just like building any other java component. The service is a simple java class with one or more service methods. a service method may return Reactor Project Mono | Flux or void in case no result is expected. Service requests might be a local or remote call and should not block the service consumer (unless the consumer explicitly called the Mono.block())
 
+NOTE: when implementing a reactive service, blocking a service call is not recommended. 
 
+```java
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
+public class SimpleGreetingService implements GreetingService {
+    
+    @ServiceMethod   // FIRE AND FORGET
+    void greeting(GreetingRequest request){
+       // do somthing about it
+    }
+    
+    
+    @ServiceMethod   // REQUEST RESPONSE
+    Mono<GreetingResponse> greeting(GreetingRequest request) {
+       return Mono.just(new GreetingResponse())
+    }
 
+   
+    @ServiceMethod   // REQUEST STREAM
+    Flux<GreetingResponse> greetingStream(GreetingRequest request) {
+       return Flux.empty()
+    }
 
+    
+    @ServiceMethod   // REQUEST BIDI STREAM
+    Flux<GreetingResponse> greetingChannel(Flux<GreetingRequest> requests){
+        // do somthing about it
+    }
+}
+```
 
+---
 
+## Provisioning Services
+So far we have learned how to define and implement a service, actually it was nothing more than implementing a Java component.
+In this section we will learn how to provision our components as clustered Microservices .
 
+```java
+  // Create microservice provider
+  Microservices provider = Microservices.builder()
+    .discovery(options -> options.seeds(....))
+    .services(new GreetingServiceImpl(),...)
+    .startAwait();
+```
 
+The line above introduces the service component to the cluster, it reads the information from the service interface and registers the instance in the cluster using the .services(...) option. It iss possible to introduce many service instances to the cluster or clusters for example by running several JVM instances, each containing a service instance or having many services in the same JVM instance.
 
+### Service Tags
+It is also possible to register services with service tags. The service .tag(key,value) is a user defined property used to describe a service instance. Tag helps to distinguish instances and a single instance, it is possible to add several tags to the service description.
+Following are several examples use-cases of Service Tags:
+- Route and select a specific service instance 30% of the times.
+- Assign a specific service instance with special role in the cluster.
+- Always choose the latest version of a service.
+- ...
 
+```java
+    Microservices services1 = Microservices.builder()
+        .discovery(options -> options.seeds(....))
+        .service(ServiceInfo.fromServiceInstance(new GreetingServiceImpl())
+              .tag("Weight", "0.3")
+              .tag("Version", "1.0.3")
+              .tag("Role", "Master")
+            .build())
+        .startAwait();
+```
+---
+
+## Consuming Services
+We have seen how to define a service interfaces and how to implement them, now we need to consume them. The service interface contains everything ScaleCube services needs to know on how to go about invoking a service.
+
+A service implementation may be located anywhere at the cluster and or may appear with number of instances. ScaleCube service ServiceCall solve this for you. no matter where and how much service instances you have it gives you the full control to consume them.
+
+A service consumer is a member of the service cluster sharing same Cluster Membership / Failure Detection / Gossip discovery group. This can be achieved by joining one of the known cluster members AKA .seeds() nodes.
+
+```java
+// Create microservice consumer
+Microservices consumer = Microservices.builder()
+		.discovery(options -> options.seeds(....))
+		.startAwait();
+```
+
+Using the service interface class we can request from the consumer a ServiceCall for a given .api(GreetingService.class). The call to the api method will build for us a service proxy with relevant descriptors to address the specific service in the cluster.
+
+```java
+  // Get a proxy to the service API.
+  ServiceCall serviceCall = consumer.call().create();
+  
+  // Creates a service proxy passing the service interface class
+  GreetingService greetingService = serviceCall.api(GreetingService.class);
+```
+
+Using the service proxy to call the concrete service is as trivial as a simple method call. The service proxy will locate the service   instance in the cluster and will route to them the requests. Services supports java Reactor Project Mono for a async request response   and Flux for a reactive streams pattern.
+
+```java
+  // Call service and when complete print the greeting.
+  GreetingRequest req = new GreetingRequest("Joe");
+  
+  Publisher<GreetingResponse> publisher = greetingService.greeting(req);
+  GreetingResponse response = 
+		Mono.from(publisher).subscribe(result -> {
+			System.out.println(result.greeting());
+		});
+  
+  Flux<GreetingResponse> stream = greetingService.greetings(req)
+   .subscribe(onNext -> {
+      System.out.println(onNext.getResult())
+  });
+```
+
+By default the scale-cube services provides a Round-robin service instance selection. Thus for each service request the service proxy will use the currently available service endpoints and will invoke one message to one service instance at a time so its balanced across all currently-live-service-instances. Using the .router(...) its also possible to control the endpoint selection logic.
+
+Service Proxy Options:
+.router(...) option you can choose from available selection logic or provide a custom one.
+.timeout(Duration) option you can specify a timeout for waiting for service response the default is 30 secounds.
+
+```java
+  // Get a proxy to a service API via a router.
+    CanaryService service = gateway.call()
+        .router(Routers.getRouter(CanaryTestingRouter.class))
+        .create()
+        .api(CanaryService.class);
+```
 
 
 
