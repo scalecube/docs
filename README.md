@@ -62,6 +62,9 @@ The example provisions 2 cluster nodes and making a remote interaction.
 ```java
     //1. ScaleCube Node node with no members
     Microservices seed = Microservices.builder().startAwait();
+    
+    //2 Define ServiceFactory:
+    ServiceFactory serviceFactory = ScalecubeServiceFactory.fromInstances(new GreetingServiceImpl());
 
     //2. Construct a ScaleCube node which joins the cluster hosting the Greeting Service
     Microservices microservices =
@@ -71,7 +74,7 @@ The example provisions 2 cluster nodes and making a remote interaction.
                     new ScalecubeServiceDiscovery(self)
                         .options(opts -> opts.seedMembers(toAddress(seed.discovery().address()))))
             .transport(ServiceTransports::rsocketServiceTransport)
-            .services(new GreetingServiceImpl())
+            .serviceFactory(serviceFactory)
             .startAwait();
 
     //3. Create service proxy
@@ -119,7 +122,7 @@ Basic API-Gateway example:
 
     Microservices.builder()
         .discovery(options -> options.seeds(seed.discovery().address()))
-        .services(...) // OPTIONAL: services (if any) as part of this node.
+        .serviceFactory(...) // OPTIONAL: factory of services (if any) as part of this node.
 
         // configure list of gateways plugins exposing the apis
         .gateway(options -> new WebsocketGateway(options.id("ws").port(8080)))
@@ -336,15 +339,24 @@ public class SimpleGreetingService implements GreetingService {
 So far we have learned how to define and implement a service, actually it was nothing more than implementing a Java component.
 In this section we will learn how to provision our components as clustered Microservices .
 
+First, we create a ServiceFactory that manages the life cycle of our services:
+
 ```java
+    // Create ServiceFactory
+    ServiceFactory serviceFactory = ScalecubeServiceFactory
+      .fromIntances(new SimpleGreetingService(), ...);
+```
+Second, we add our service factory to microservice provider:
+```java
+
   // Create microservice provider
   Microservices provider = Microservices.builder()
     .discovery(options -> options.seeds(....))
-    .services(new SimpleGreetingService(),...)
+    .serviceFactory(serviceFactory)
     .startAwait();
 ```
 
-The line above introduces the service component to the cluster, it reads the information from the service interface and registers the instance in the cluster using the .services(...) option. It iss possible to introduce many service instances to the cluster or clusters for example by running several JVM instances, each containing a service instance or having many services in the same JVM instance.
+The line above introduces the service component to the cluster, it reads the information from the service interface and registers the instance in the cluster using the service factory. It iss possible to introduce many service instances to the cluster or clusters for example by running several JVM instances, each containing a service instance or having many services in the same JVM instance.
 
 ### Service Tags
 It is also possible to register services with service tags. The service .tag(key,value) is a user defined property used to describe a service instance. Tag helps to distinguish instances and a single instance, it is possible to add several tags to the service description.
@@ -355,13 +367,16 @@ Following are several examples use-cases of Service Tags:
 - ...
 
 ```java
+    ServiceFactory serviceFactory = ScalecubeServiceFactory.fromInstances(
+      ServiceInfo.fromServiceInstance(new SimpleGreetingService())
+                    .tag("Weight", "0.3")
+                    .tag("Version", "1.0.3")
+                    .tag("Role", "Master")
+                  .build()
+    );
     Microservices services1 = Microservices.builder()
         .discovery(options -> options.seeds(....))
-        .service(ServiceInfo.fromServiceInstance(new SimpleGreetingService())
-              .tag("Weight", "0.3")
-              .tag("Version", "1.0.3")
-              .tag("Role", "Master")
-            .build())
+        .serviceFactory(serviceFactory)
         .startAwait();
 ```
 ---
